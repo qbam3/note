@@ -69,36 +69,41 @@ router.post('/store', upload.single("foto_catatan"), (req, res, next) => {
     }
 });
 
-router.get('/edit/(:id)', function(req, res, next) {
+router.get('/edit/:id', function(req, res, next) {
     let id = req.params.id;
-    connection.query('SELECT * FROM jenis ORDER BY id_jenis DESC', function(err, rows) {
+
+    connection.query('SELECT * FROM jenis ORDER BY id_jenis DESC', function(err, jenis) {
         if (err) {
-            req.flash('error', err);
+            req.flash('error', 'Gagal mengambil data jenis!');
+            res.redirect('/catatan');
         } else {
-            res.render('jenis/index', { data: rows });
-        }
-    });
-    connection.query('SELECT * FROM catatan a LEFT JOIN jenis b ON a.id_catatan = ' + id, function(err, rows) {
-        if (err) {
-            req.flash('error', 'Query gagal!');
-        } else {
-            res.render('catatan/edit', {
-                id_catatan: rows[0].id_catatan,
-                nama_catatan: rows[0].nama_catatan,
-                keterangan_catatan: rows[0].keterangan_catatan,
-                jenis_catatan: rows[0].jenis_catatan
+            connection.query('SELECT * FROM catatan a LEFT JOIN jenis b ON b.id_jenis = a.jenis_catatan WHERE a.id_catatan = ?', [id], function(err, rows) {
+                if (err) {
+                    req.flash('error', 'Gagal mengambil data catatan!');
+                    res.redirect('/catatan');
+                } else {
+                    res.render('catatan/edit', {
+                        id_catatan: rows[0].id_catatan,
+                        nama_catatan: rows[0].nama_catatan,
+                        keterangan_catatan: rows[0].keterangan_catatan,
+                        foto_catatan: rows[0].foto_catatan,
+                        jenis_catatan: rows[0].jenis_catatan,
+                        data: jenis
+                    });
+                }
             });
         }
     });
 });
 
+
 router.post('/update/(:id)', upload.single("foto_catatan"), function(req, res, next) {
     try {
         let id = req.params.id;
-        let { nama_catatan, keterangan_catatan } = req.body;
+        let { nama_catatan, keterangan_catatan, id_jenis } = req.body;
         let gambar = req.file ? req.file.filename : null;
 
-        connection.query(`SELECT * FROM catatan WHERE id_catatan = ${id}`, function(err, rows) {
+        connection.query('SELECT * FROM catatan WHERE id_catatan = ?', [id], function(err, rows) {
             if (err) {
                 req.flash('error', 'Gagal mengambil data dari database!');
                 res.redirect('/catatan');
@@ -119,12 +124,14 @@ router.post('/update/(:id)', upload.single("foto_catatan"), function(req, res, n
             let updateData = {
                 nama_catatan: nama_catatan,
                 keterangan_catatan: keterangan_catatan,
-                foto_catatan: foto_catatan
+                foto_catatan: foto_catatan,
+                jenis_catatan: id_jenis
             };
 
             connection.query('UPDATE catatan SET ? WHERE id_catatan = ?', [updateData, id], function(err, result) {
                 if (err) {
                     req.flash('error', 'Gagal memperbarui data!');
+                    console.error('Update error:', err);
                 } else {
                     req.flash('success', 'Data berhasil diperbarui!');
                 }
@@ -133,9 +140,11 @@ router.post('/update/(:id)', upload.single("foto_catatan"), function(req, res, n
         });
     } catch (err) {
         req.flash('error', 'Terjadi kesalahan pada fungsi!');
+        console.error('Catch error:', err);
         res.redirect('/catatan');
     }
 });
+
 
 router.get('/delete/(:id)', function(req, res, next) {
     let id = req.params.id;
